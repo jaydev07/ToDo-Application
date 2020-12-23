@@ -1,0 +1,22 @@
+<%- include("header") -%>
+
+<div class="signup">
+<h1 class="heading">Welcome to Your ToDo List</h1>
+
+<div class="auth-container">
+    <form action="/signup" method="post">
+        <label class="auth-label">Name</label>
+        <input class="auth-input" type="text" name="name" autocomplete="off" />
+        <label class="auth-label">Email</label>
+        <input class="auth-input" type="email" name="email" autocomplete="off" />
+        <label class="auth-label">Password</label>
+        <input class="auth-input" type="password" name="password" autocapitalize="off" />
+        <button class="auth-btn">Signup</button>
+        <a href="http://localhost:3000/" class="switch-btn">Siwtch to Login</a>
+    </form>
+</div>
+
+</div>
+
+
+<%- include("footer") -%>
