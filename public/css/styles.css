@@ -5,6 +5,16 @@ html {
   font-family: 'helvetica neue';
 }
 
+body{
+  text-align: center;
+}
+.user{
+  font-size: 3rem;
+  color:aqua;
+  margin-top: 1rem;
+
+}
+
 .signup{
   text-align: center;
 }
@@ -91,10 +101,11 @@ html {
   background-color: #7fff00;
   color: black;
   border-radius: 20px;
-  width: 25%;
-  height: 10%;
+  width: 30%;
+  height: 15%;
   margin:auto;
-  margin-top: 5%;
+  margin-top: 3%;
+  padding:0.05rem;
   color:black;
 }
 
@@ -181,4 +192,22 @@ button {
   font-size: 30px;
   padding-bottom: 6px;
   border-width: 0;
+  outline: none;
 } 
+
+.main-container{
+  text-align: center;
+}
+
+.main-title{
+  color:aqua;
+  font-size: 3rem;
+  margin-top: 3rem;
+  margin-bottom: 0;
+}
+
+.error-text{
+  font-size: 1.5rem;
+  color:#7fff00;
+  margin-top: 1rem;
+}

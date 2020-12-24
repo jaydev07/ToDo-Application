@@ -14,175 +14,202 @@ app.use(express.static("public"));
 
 mongoose.connect("mongodb+srv://admin-jaydev:jaydev213@cluster0.e713i.mongodb.net/todo?retryWrites=true&w=majority", {useNewUrlParser: true});
 
-const itemsSchema = {
-  name: String
-};
-
+const itemsSchema = new mongoose.Schema({
+  name:{type:String , required:true},
+  userId:{type:mongoose.Schema.Types.ObjectId , required:true , ref:'User'}
+})
 const Item = mongoose.model("Item", itemsSchema);
 
 
 const item1 = new Item({
-  name: "Welcome to your todolist!"
+  name: "Hit the + button to add a new item.",
+  userId:null
 });
 
 const item2 = new Item({
-  name: "Hit the + button to add a new item."
+  name: "<-- Hit this to delete an item.",
+  userId:null
 });
 
-const item3 = new Item({
-  name: "<-- Hit this to delete an item."
-});
+const defaultItems = [item1, item2];
 
-const defaultItems = [item1, item2, item3];
-
-const listSchema = {
-  name: String,
-  items: [itemsSchema]
-};
-
-const List = mongoose.model("List", listSchema);
-
-
-const userSchema = {
-  name:String,
-  email:String,
-  password:String,
-  lists:[listSchema]
-}
+const userSchema = new mongoose.Schema({
+  name:{type:String, required:true},
+  email:{type:String , required:true},
+  password:{type:String , required:true},
+  items:[
+    {type:mongoose.Schema.Types.ObjectId ,required:true, ref:'Item'}
+  ]
+})
 
 const User = mongoose.model("User",userSchema);
 
-// Enter to login page
-app.get("/",function(req,res){
+app.get("/", (req,res) => {
   res.render("auth");
 });
 
-// POST for login
-app.post("/login",function(req,res){
+app.post("/login", async (req,res) => {
   const {email, password} = req.body;
 
-  User.findOne({email}, function(err,userFound){
-    if(!err){
-      if(userFound && userFound.password === password){
-        console.log("Successfully login");
-        res.redirect(`/${userFound.id}`);
-      }
-    } 
-  })
+  let userFound;
+  try{
+    userFound = await User.findOne({email});
+  }catch(err){
+    console.log(err);
+    res.render('error',{error:"Please login again."});
+  }
+
+  if(userFound){
+    if(userFound.password === password){
+      res.redirect("/"+userFound.id);
+    }else{
+      res.render('error',{error:"Login faliled.Please enter a valid password"});  
+    }
+  }else{
+    res.render('error',{error:"User not found.Please signup."});
+  }
 });
 
 // Signup page
-app.get("/signup",function(req,res){
+app.get("/signup", (req,res) => {
   res.render("signup");
 })
 
-//
-app.post("/signup",function(req,res){
+app.post("/signup",async (req,res) => {
   const {name , email ,password } = req.body;
 
   const newUser = new User({
     name,
     email,
     password,
-    lists:[]
+    items:[]
   });
 
-  newUser.save();
-  res.redirect("/user");
+  try{
+    await newUser.save();
+  }catch(err){
+    console.log(err);
+    return res.render('error',{error:"Please signup again."});
+  }
+  const user = newUser.toObject({getters:true});
+
+  try{
+    const sess = await mongoose.startSession();
+    sess.startTransaction();
+
+    item1.userId = user.id;
+    await item1.save({session:sess});
+
+    item2.userId = user.id;
+    await item2.save({session:sess});
+
+    newUser.items.push(item1);
+    newUser.items.push(item2);
+    await newUser.save({session:sess}); 
+
+    sess.commitTransaction();
+  }catch(err){
+    console.log(err);
+    res.render('error',{error:'Please try again.'});
+  }
+  
+  res.redirect('/'+ user.id);
+});
+
+app.get("/:userId" , async (req,res) => {
+
+  const userId = req.params.userId;
+
+  let userFound;
+  try{
+    userFound = await User.findById(userId).populate('items');
+  }catch(err){
+    console.log(err);
+    return res.render('error',{error:'User not found.'});
+  }
+
+  const user = userFound.toObject({getters:true});
+
+  res.render("list" , {user:user , listTitle:"Welcome to your ToDo List" , newListItems:userFound.items.map((item) => item.toObject({getters:true}))})
+  
+});
+
+app.post("/", async (req,res) => {
+  const name = req.body.newItem;
+  const userId = req.body.userId;
+
+  const newItem = new Item({
+    name,
+    userId
+  });
+
+  let userFound;
+  try{
+    userFound = await User.findById(userId);
+  }catch(err){
+    console.log(err);
+    res.render("error",{error:'User not found.'});
+  }
+
+  try{
+    const sess = await mongoose.startSession();
+    sess.startTransaction();
+
+    await newItem.save({session:sess});
+
+    userFound.items.push(newItem);
+    await userFound.save({session:sess});
+
+    sess.commitTransaction();
+  }catch(err){
+    console.log(err);
+    res.render('error',{error:'Item not saved.Please try again.'});
+  }
+
+  res.redirect('/'+userId);
 })
 
+app.post("/delete", async (req,res) => {
 
-app.get("/user", function(req, res) {
+  const itemId = req.body.checkbox;
+  const userId = req.body.userId;
 
-  Item.find({}, function(err, foundItems){
+  console.log(userId);
 
-    if (foundItems.length === 0) {
-      Item.insertMany(defaultItems, function(err){
-        if (err) {
-          console.log(err);
-        } else {
-          console.log("Successfully savevd default items to DB.");
-        }
-      });
-      res.redirect("/");
-    } else {
-      res.render("list", {listTitle: "Today", newListItems: foundItems});
-    }
-  });
-
-});
-
-app.get("/:customListName", function(req, res){
-  const customListName = _.capitalize(req.params.customListName);
-
-  List.findOne({name: customListName}, function(err, foundList){
-    if (!err){
-      if (!foundList){
-        //Create a new list
-        const list = new List({
-          name: customListName,
-          items: defaultItems
-        });
-        list.save();
-        res.redirect("/" + customListName);
-      } else {
-        //Show an existing list
-
-        res.render("list", {listTitle: foundList.name, newListItems: foundList.items});
-      }
-    }
-  });
-
-
-
-});
-
-app.post("/", function(req, res){
-
-  const itemName = req.body.newItem;
-  const listName = req.body.list;
-
-  const item = new Item({
-    name: itemName
-  });
-
-  if (listName === "Today"){
-    item.save();
-    res.redirect("/");
-  } else {
-    List.findOne({name: listName}, function(err, foundList){
-      foundList.items.push(item);
-      foundList.save();
-      res.redirect("/" + listName);
-    });
-  }
-});
-
-app.post("/delete", function(req, res){
-  const checkedItemId = req.body.checkbox;
-  const listName = req.body.listName;
-
-  if (listName === "Today") {
-    Item.findByIdAndRemove(checkedItemId, function(err){
-      if (!err) {
-        console.log("Successfully deleted checked item.");
-        res.redirect("/");
-      }
-    });
-  } else {
-    List.findOneAndUpdate({name: listName}, {$pull: {items: {_id: checkedItemId}}}, function(err, foundList){
-      if (!err){
-        res.redirect("/" + listName);
-      }
-    });
+  let userFound;
+  try{
+    userFound = await User.findById(userId);
+  }catch(err){
+    console.log(err);
+    res.render('error',{error:'User not found'});
   }
 
+  let itemFound;
+  try{
+    itemFound = await Item.findById(itemId);
+  }catch(err){
+    console.log(err);
+    res.render('error',{error:'Item not found'});
+  }
 
-});
+  try{
+    const sess = await mongoose.startSession();
+    sess.startTransaction();
 
-app.get("/about", function(req, res){
-  res.render("about");
-});
+    await itemFound.remove({session:sess});
+
+    userFound.items.pull(itemFound);
+    userFound.save({session:sess});
+
+    sess.commitTransaction(); 
+  }catch(err){
+    console.log(err);
+    res.render("error",{error:'Item is not deleted.Please try again.'});
+  }
+
+  res.redirect("/"+userId);
+
+})
 
 app.listen(3000, function() {
   console.log("Server started on port 3000");
