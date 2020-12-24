@@ -1,9 +1,16 @@
 const mongoose = require("mongoose");
+const {validationResult} = require("express-validator");
 
 const Item = require("../models/item-model");
 const User = require("../models/user-model");
 
 const addItem = async (req,res) => {
+
+    const error = validationResult(req);
+    if(!error.isEmpty()){
+      return res.render('error',{error:"Please entery valid a item."});
+    }
+    
     const name = req.body.newItem;
     const userId = req.body.userId;
   

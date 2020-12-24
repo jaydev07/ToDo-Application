@@ -1,4 +1,7 @@
 const mongoose = require("mongoose");
+const {validationResult} = require('express-validator');
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 const Item = require("../models/item-model");
 const User = require("../models/user-model");
@@ -22,60 +25,77 @@ const getSignupPage = (req,res) => {
 }
 
 const signup = async (req,res) => {
-    const {name , email ,password } = req.body;
 
-    let userExists;
-    try{
-      userExists = await User.findOne({email});
-    }catch(err){
-      console.log(err);
-      res.render('error',{error:'Please try again.'});
+    const error = validationResult(req);
+    if(!error.isEmpty()){
+      return res.render('error',{error:"Please entery valid details & password of minimum 5 characters."});
     }
 
-    if(userExists){
-      return res.render('error',{error:"User already exists.Please login."});
-    }
-  
-    const newUser = new User({
-      name,
-      email,
-      password,
-      items:[]
-    });
-  
-    try{
-      await newUser.save();
-    }catch(err){
-      console.log(err);
-      return res.render('error',{error:"Please signup again."});
-    }
-    const user = newUser.toObject({getters:true});
-  
-    try{
-      const sess = await mongoose.startSession();
-      sess.startTransaction();
-  
-      item1.userId = user.id;
-      await item1.save({session:sess});
-  
-      item2.userId = user.id;
-      await item2.save({session:sess});
-  
-      newUser.items.push(item1);
-      newUser.items.push(item2);
-      await newUser.save({session:sess}); 
-  
-      sess.commitTransaction();
-    }catch(err){
-      console.log(err);
-      res.render('error',{error:'Please try again.'});
-    }
+    bcrypt.hash(req.body.password , saltRounds , async (err ,hash) => {
+      const name = req.body.name;
+      const email = req.body.email;
+      const password = hash;
+
+      let userExists;
+      try{
+        userExists = await User.findOne({email});
+      }catch(err){
+        console.log(err);
+        res.render('error',{error:'Please try again.'});
+      }
+
+      if(userExists){
+        return res.render('error',{error:"User already exists.Please login."});
+      }
     
-    res.redirect('/'+ user.id);
+      const newUser = new User({
+        name,
+        email,
+        password,
+        items:[]
+      });
+    
+      try{
+        await newUser.save();
+      }catch(err){
+        console.log(err);
+        return res.render('error',{error:"Please signup again."});
+      }
+      const user = newUser.toObject({getters:true});
+    
+      try{
+        const sess = await mongoose.startSession();
+        sess.startTransaction();
+    
+        item1.userId = user.id;
+        await item1.save({session:sess});
+    
+        item2.userId = user.id;
+        await item2.save({session:sess});
+    
+        newUser.items.push(item1);
+        newUser.items.push(item2);
+        await newUser.save({session:sess}); 
+    
+        sess.commitTransaction();
+      }catch(err){
+        console.log(err);
+        res.render('error',{error:'Please try again.'});
+      }
+      
+      res.redirect('/'+ user.id);
+    })
+    
   }
 
 
   const login = async (req,res) => {
+
+    const error = validationResult(req);
+    if(!error.isEmpty()){
+      return res.render('error',{error:"Please entery valid details & password of minimum 5 characters."});
+    }
+    
     const {email, password} = req.body;
   
     let userFound;
@@ -87,11 +107,13 @@ const signup = async (req,res) => {
     }
   
     if(userFound){
-      if(userFound.password === password){
-        res.redirect("/"+userFound.id);
-      }else{
-        res.render('error',{error:"Login faliled.Please enter a valid password"});  
-      }
+      bcrypt.compare(password , userFound.password , function(err,result){
+        if(result === true){
+          res.redirect("/"+userFound.id);
+        }else{
+          res.render('error',{error:"Login faliled.Please enter a valid password"});  
+        }
+      });
     }else{
       res.render('error',{error:"User not found.Please signup."});
     }
